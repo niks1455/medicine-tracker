@@ -33,6 +33,24 @@ export default function App() {
 
   const today = () => new Date().toISOString().slice(0, 10)
 
+  const todayDayName = () => {
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+    return days[new Date().getDay()]
+  }
+
+  const todayDate = () => new Date().getDate()
+
+  function isMedicineDueToday(med) {
+    if (med.frequency === 'daily') return true
+    if (med.frequency === 'weekly') {
+      return (med.days || []).includes(todayDayName())
+    }
+    if (med.frequency === 'monthly') {
+      return (med.dates || []).includes(todayDate())
+    }
+    return true
+  }
+
   async function fetchMedicines() {
     const { data: meds } = await supabase.from('medicines').select('*, doses(*)')
     setMedicines(meds || [])
@@ -46,7 +64,7 @@ export default function App() {
   async function signUp() {
     const { error } = await supabase.auth.signUp({ email, password })
     if (error) setAuthMsg(error.message)
-    else setAuthMsg('Check your email to confirm your account!')
+    else setAuthMsg('Account created! Please sign in.')
   }
 
   async function signIn() {
@@ -156,8 +174,10 @@ export default function App() {
     setDoseEntries(prev => prev.filter((_, idx) => idx !== i))
   }
 
-  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+  const daysList = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
   const dayLabels = ['M', 'T', 'W', 'Th', 'F', 'S', 'Su']
+
+  const dueMedicines = medicines.filter(isMedicineDueToday)
 
   const s = {
     container: { maxWidth: 400, margin: '0 auto', fontFamily: 'system-ui, sans-serif', minHeight: '100vh', background: '#fff' },
@@ -190,7 +210,7 @@ export default function App() {
       <p style={{ textAlign: 'center', color: '#888', fontSize: 14, marginBottom: 8 }}>Sign in or create an account</p>
       <input style={s.input} placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} type="email" />
       <input style={s.input} placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} type="password" />
-      {authMsg && <p style={{ color: authMsg.includes('Check') ? 'green' : 'red', fontSize: 13 }}>{authMsg}</p>}
+      {authMsg && <p style={{ color: authMsg.includes('created') ? 'green' : 'red', fontSize: 13 }}>{authMsg}</p>}
       <button style={s.btnPrimary} onClick={signIn}>Sign in</button>
       <button style={s.btnSecondary} onClick={signUp}>Create account</button>
     </div>
@@ -207,21 +227,23 @@ export default function App() {
         </div>
       </div>
       <div style={s.screen}>
-        {medicines.length === 0
-          ? <div style={{ textAlign: 'center', padding: '40px 20px', color: '#aaa' }}>No medicines yet. Tap + to add one.</div>
+        {dueMedicines.length === 0
+          ? <div style={{ textAlign: 'center', padding: '40px 20px', color: '#aaa' }}>
+              {medicines.length === 0 ? 'No medicines yet. Tap + to add one.' : 'No medicines due today!'}
+            </div>
           : <div style={s.card}>
-            {medicines.flatMap(med =>
-              (med.doses || []).map(dose => (
-                <div key={dose.id} style={s.row}>
-                  <div>
-                    <div style={s.medName}>{med.name}</div>
-                    <div style={s.medTime}>{dose.time} {dose.ampm}</div>
+              {dueMedicines.flatMap(med =>
+                (med.doses || []).map(dose => (
+                  <div key={dose.id} style={s.row}>
+                    <div>
+                      <div style={s.medName}>{med.name}</div>
+                      <div style={s.medTime}>{dose.time} {dose.ampm}</div>
+                    </div>
+                    <button style={s.tickBtn(isTaken(dose.id))} onClick={() => toggleTaken(med, dose)}>✓</button>
                   </div>
-                  <button style={s.tickBtn(isTaken(dose.id))} onClick={() => toggleTaken(med, dose)}>✓</button>
-                </div>
-              ))
-            )}
-          </div>
+                ))
+              )}
+            </div>
         }
       </div>
     </div>
@@ -282,7 +304,7 @@ export default function App() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <span style={s.label}>Select days</span>
             <div style={{ display: 'flex', gap: 5 }}>
-              {days.map((day, i) => (
+              {daysList.map((day, i) => (
                 <button key={day} style={s.dayBtn(selectedDays.includes(day))} onClick={() => toggleDay(day)}>
                   {dayLabels[i]}
                 </button>
